@@ -19,6 +19,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           java-version: '11'
+          distribution: 'adoptopenjdk'  # You can use 'zulu', 'adoptopenjdk', etc. for the distribution
 
       - name: Build with Maven
         run: mvn clean install  # or use gradle build if you're using Gradle
