@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0  # Shallow clones should be disabled for better relevancy of analysis
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -35,18 +35,34 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      - name: Build and analyze
+      - name: Build and analyze for vulnerabilities
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           mvn clean install -B
-          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=testing -Dsonar.projectName='testing' -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=testing \
+            -Dsonar.projectName='testing' \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300 \
+            -Dsonar.analysis.mode=publish \
+            -Dsonar.issuesReport.json.enable=true \
+            -Dsonar.analysis.security.vulnerabilities=true
 
-      - name: Check for SonarQube Quality Gate
+      - name: Check for vulnerabilities in SonarQube Quality Gate
         run: |
-          # Ensure the SonarQube analysis meets the defined quality gate
-          if [[ $(curl -u "${{ secrets.SONAR_TOKEN }}": "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=testing" | jq -r '.projectStatus.status') != "OK" ]]; then
+          # Ensure the SonarQube analysis meets the defined quality gate focusing only on vulnerabilities
+          status=$(curl -u "${{ secrets.SONAR_TOKEN }}": "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=testing" | jq -r '.projectStatus.status')
+          
+          if [[ "$status" != "OK" ]]; then
             echo "Quality Gate failed. Exiting..."
+            exit 1
+          fi
+
+          vulnerabilities=$(curl -u "${{ secrets.SONAR_TOKEN }}": "${{ secrets.SONAR_HOST_URL }}/api/issues/search?projectKeys=testing&types=VULNERABILITY" | jq -r '.total')
+
+          if [[ "$vulnerabilities" -gt 0 ]]; then
+            echo "Found vulnerabilities. Exiting..."
             exit 1
           fi
