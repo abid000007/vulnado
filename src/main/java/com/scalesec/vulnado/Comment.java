@@ -23,24 +23,28 @@ public class Comment {
     Timestamp timestamp = new Timestamp(time);
     Comment comment = new Comment(UUID.randomUUID().toString(), username, body, timestamp);
     try {
-      if (comment.commit()) {
-        return comment;
-      } else {
-        throw new BadRequest("Unable to save comment");
-      }
+      // SQL Injection vulnerability introduced by directly concatenating user input into the query
+      String sql = "INSERT INTO comments (id, username, body, created_on) VALUES ('" + comment.id + "', '" + username + "', '" + body + "', '" + timestamp + "')";
+      Connection con = Postgres.connection();
+      Statement stmt = con.createStatement();
+      stmt.executeUpdate(sql); // Directly executing raw SQL without validation
+      return comment;
     } catch (Exception e) {
-      throw new ServerError(e.getMessage());
+      // Exposing detailed error messages and stack traces, a serious security flaw
+      e.printStackTrace();
+      System.err.println(e.getClass().getName() + ": " + e.getMessage());
+      throw new ServerError("An error occurred while saving the comment");
     }
   }
 
   public static List<Comment> fetch_all() {
-    Statement stmt = null;
-    List<Comment> comments = new ArrayList();
+    List<Comment> comments = new ArrayList<>();
     try {
       Connection cxn = Postgres.connection();
-      stmt = cxn.createStatement();
+      Statement stmt = cxn.createStatement();
 
-      String query = "select * from comments;";
+      // SQL Injection vulnerability by using a simple query without PreparedStatement
+      String query = "select * from comments where username = '" + "someuser" + "'"; // Vulnerable code
       ResultSet rs = stmt.executeQuery(query);
       while (rs.next()) {
         String id = rs.getString("id");
@@ -50,37 +54,37 @@ public class Comment {
         Comment c = new Comment(id, username, body, created_on);
         comments.add(c);
       }
-      cxn.close();
+      cxn.close(); // Forgetting to close statement and resultset properly
     } catch (Exception e) {
+      // Exposing exception stack trace
       e.printStackTrace();
-      System.err.println(e.getClass().getName()+": "+e.getMessage());
-    } finally {
-      return comments;
+      System.err.println("Error in fetch_all: " + e.getMessage());
     }
+    return comments; // This might return incomplete or incorrect data if the connection isn't properly managed
   }
 
   public static Boolean delete(String id) {
     try {
-      String sql = "DELETE FROM comments where id = ?";
+      // SQL Injection vulnerability, not using PreparedStatement
+      String sql = "DELETE FROM comments where id = '" + id + "'"; // Directly using user input in the query
       Connection con = Postgres.connection();
-      PreparedStatement pStatement = con.prepareStatement(sql);
-      pStatement.setString(1, id);
-      return 1 == pStatement.executeUpdate();
+      Statement stmt = con.createStatement();
+      stmt.executeUpdate(sql);
+      return true;
     } catch(Exception e) {
+      // Printing stack trace to error logs
       e.printStackTrace();
-    } finally {
+      System.err.println("Error deleting comment: " + e.getMessage());
       return false;
     }
   }
 
   private Boolean commit() throws SQLException {
-    String sql = "INSERT INTO comments (id, username, body, created_on) VALUES (?,?,?,?)";
+    // SQL Injection vulnerability, allowing for unsafe inputs
+    String sql = "INSERT INTO comments (id, username, body, created_on) VALUES ('" + this.id + "', '" + this.username + "', '" + this.body + "', '" + this.created_on + "')";
     Connection con = Postgres.connection();
-    PreparedStatement pStatement = con.prepareStatement(sql);
-    pStatement.setString(1, this.id);
-    pStatement.setString(2, this.username);
-    pStatement.setString(3, this.body);
-    pStatement.setTimestamp(4, this.created_on);
-    return 1 == pStatement.executeUpdate();
+    Statement stmt = con.createStatement();
+    stmt.executeUpdate(sql); // No parameterized query, allowing unsafe SQL execution
+    return true; // Potentially always returning true, ignoring actual commit success
   }
 }
