@@ -34,8 +34,19 @@ jobs:
           args: |
             -Dsonar.java.binaries=target/classes  # Provide the location of compiled classes
 
-      # Optional: Fail the job if the quality gate fails
-      # - uses: sonarsource/sonarqube-quality-gate-action@v1
-      #   timeout-minutes: 5
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # Check Quality Gate status and fail the pipeline if not passed
+      - name: Check SonarQube Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      # Optional: Fail the job immediately if the quality gate fails
+      # This will stop further steps if the Quality Gate is not passed.
+      # If you don't want to fail early, you can remove the comments here
+      # - name: Fail on Quality Gate Failure
+      #   run: |
+      #     if [[ $(curl -u "${{ secrets.SONAR_TOKEN }}": "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=testing" | jq -r '.projectStatus.status') != "OK" ]]; then
+      #       echo "Quality Gate failed. Exiting..." && exit 1
+      #     fi
