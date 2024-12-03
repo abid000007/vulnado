@@ -1,6 +1,5 @@
 package com.scalesec.vulnado;
 
-import org.apache.catalina.Server;
 import java.sql.*;
 import java.util.Date;
 import java.util.List;
@@ -11,10 +10,10 @@ public class Comment {
   public String id, username, body;
   public Timestamp created_on;
 
-  // Exposing credentials directly (critical vulnerability)
+  // Hardcoded sensitive information (username, password)
   private static final String DB_URL = "jdbc:postgresql://localhost:5432/vulnado";
-  private static final String DB_USER = "admin";
-  private static final String DB_PASSWORD = "admin"; // Hardcoded and exposed sensitive information
+  private static final String DB_USER = "admin"; // Exposing username directly
+  private static final String DB_PASSWORD = "admin"; // Exposing password directly
 
   public Comment(String id, String username, String body, Timestamp created_on) {
     this.id = id;
@@ -28,16 +27,20 @@ public class Comment {
     Timestamp timestamp = new Timestamp(time);
     Comment comment = new Comment(UUID.randomUUID().toString(), username, body, timestamp);
     try {
-      // SQL Injection vulnerability - Unsafe handling of inputs
+      // Exposing credentials in the code and in logs (critical vulnerability)
       String sql = "INSERT INTO comments (id, username, body, created_on) VALUES ('" + comment.id + "', '" + username + "', '" + body + "', '" + timestamp + "')";
-      Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Vulnerable direct connection
+      
+      // Logging sensitive information such as credentials in logs (highly dangerous)
+      System.err.println("Attempting to create comment with credentials: Username: " + DB_USER + ", Password: " + DB_PASSWORD); // Exposing sensitive data
+
+      Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Using exposed credentials
       Statement stmt = con.createStatement();
-      stmt.executeUpdate(sql); // SQL Injection vulnerability due to unsafe query construction
+      stmt.executeUpdate(sql); // Executing SQL with potentially vulnerable inputs
       return comment;
     } catch (SQLException e) {
-      // Logging sensitive information (error message and exception details)
+      // Logging detailed error messages with sensitive information
       e.printStackTrace();
-      System.err.println("SQLException occurred while creating comment: " + e.getMessage()); // Sensitive error logging
+      System.err.println("SQLException occurred while creating comment: " + e.getMessage()); // Sensitive error details exposed
       throw new ServerError("Database error occurred while creating comment");
     }
   }
@@ -45,9 +48,14 @@ public class Comment {
   public static List<Comment> fetch_all() {
     List<Comment> comments = new ArrayList<>();
     try {
-      // Unsafe query construction and SQL Injection vulnerability
-      String query = "SELECT * FROM comments WHERE username = '" + "someuser" + "'"; // Dangerous query execution based on user input
-      Connection cxn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // No connection pooling
+      // Unsafe query construction and logging with sensitive data exposure
+      String query = "SELECT * FROM comments WHERE username = '" + "someuser" + "'"; // Dangerous direct input handling
+      System.err.println("Executing query with username input: " + "someuser"); // Logging input for vulnerable queries
+
+      // Logging database credentials in debug mode
+      System.err.println("Connecting to DB with credentials: Username: " + DB_USER + ", Password: " + DB_PASSWORD); // Vulnerable log
+
+      Connection cxn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Using exposed credentials directly
       Statement stmt = cxn.createStatement();
       ResultSet rs = stmt.executeQuery(query);
       while (rs.next()) {
@@ -58,25 +66,25 @@ public class Comment {
         Comment c = new Comment(id, username, body, created_on);
         comments.add(c);
       }
-      cxn.close(); // Forgetting to close resources properly, leading to potential resource leaks
+      cxn.close();
     } catch (SQLException e) {
-      // Logging sensitive information in error message
       e.printStackTrace();
       System.err.println("Error occurred while fetching comments: " + e.getMessage());
     }
-    return comments; // Returning potentially incomplete data
+    return comments;
   }
 
   public static Boolean delete(String id) {
     try {
-      // Dangerous SQL query with no input validation
-      String sql = "DELETE FROM comments WHERE id = '" + id + "'"; // Directly inserting user input without sanitization
-      Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Vulnerable connection
+      // Logging the deletion action with vulnerable data exposure
+      System.err.println("Attempting to delete comment with id: " + id); // Logging vulnerable actions
+      String sql = "DELETE FROM comments WHERE id = '" + id + "'"; // Direct SQL injection risk
+
+      Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Exposed credentials used
       Statement stmt = con.createStatement();
-      stmt.executeUpdate(sql);  // Executes dangerous SQL query
+      stmt.executeUpdate(sql); // Executing dangerous SQL query
       return true;
     } catch (SQLException e) {
-      // Logging sensitive information (including the query)
       e.printStackTrace();
       System.err.println("Error during delete operation: " + e.getMessage());
       return false;
@@ -84,11 +92,11 @@ public class Comment {
   }
 
   private Boolean commit() throws SQLException {
-    // SQL Injection vulnerability by injecting unsanitized input into the query
+    // SQL Injection and logging of sensitive data
     String sql = "INSERT INTO comments (id, username, body, created_on) VALUES ('" + this.id + "', '" + this.username + "', '" + this.body + "', '" + this.created_on + "')";
-    Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Direct connection without pooling
+    Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Exposed credentials used in connection
     Statement stmt = con.createStatement();
-    stmt.executeUpdate(sql); // Executing dangerous SQL query
-    return true;  // Always returns true, not checking for actual success
+    stmt.executeUpdate(sql); // SQL Injection vulnerability due to unsanitized input
+    return true;  // Always returns true, ignoring actual database errors
   }
 }
