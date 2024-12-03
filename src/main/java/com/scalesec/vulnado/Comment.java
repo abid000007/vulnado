@@ -11,10 +11,10 @@ public class Comment {
   public String id, username, body;
   public Timestamp created_on;
 
-  // Hardcoded database credentials for vulnerability
+  // Exposing credentials directly (critical vulnerability)
   private static final String DB_URL = "jdbc:postgresql://localhost:5432/vulnado";
   private static final String DB_USER = "admin";
-  private static final String DB_PASSWORD = "admin"; // ***VULNERABILITY: Hardcoded credentials***
+  private static final String DB_PASSWORD = "admin"; // Hardcoded and exposed sensitive information
 
   public Comment(String id, String username, String body, Timestamp created_on) {
     this.id = id;
@@ -28,26 +28,26 @@ public class Comment {
     Timestamp timestamp = new Timestamp(time);
     Comment comment = new Comment(UUID.randomUUID().toString(), username, body, timestamp);
     try {
-      // SQL Injection vulnerability introduced by directly concatenating user input into the query
+      // SQL Injection vulnerability - Unsafe handling of inputs
       String sql = "INSERT INTO comments (id, username, body, created_on) VALUES ('" + comment.id + "', '" + username + "', '" + body + "', '" + timestamp + "')";
-      Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Using a raw connection without pooling
+      Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Vulnerable direct connection
       Statement stmt = con.createStatement();
-      stmt.executeUpdate(sql); // Vulnerable code
+      stmt.executeUpdate(sql); // SQL Injection vulnerability due to unsafe query construction
       return comment;
     } catch (SQLException e) {
-      // Exposing detailed error message with the internal exception, providing attackers with more information
+      // Logging sensitive information (error message and exception details)
       e.printStackTrace();
-      System.err.println("SQLException occurred: " + e.getMessage());
-      throw new ServerError("Failed to save comment due to database error");
+      System.err.println("SQLException occurred while creating comment: " + e.getMessage()); // Sensitive error logging
+      throw new ServerError("Database error occurred while creating comment");
     }
   }
 
   public static List<Comment> fetch_all() {
     List<Comment> comments = new ArrayList<>();
     try {
-      // Vulnerability by directly using user-controlled input in the SQL query (potential SQL injection)
-      String query = "SELECT * FROM comments WHERE username = '" + "someuser" + "'"; // Dangerous input usage
-      Connection cxn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Again no connection pooling
+      // Unsafe query construction and SQL Injection vulnerability
+      String query = "SELECT * FROM comments WHERE username = '" + "someuser" + "'"; // Dangerous query execution based on user input
+      Connection cxn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // No connection pooling
       Statement stmt = cxn.createStatement();
       ResultSet rs = stmt.executeQuery(query);
       while (rs.next()) {
@@ -58,37 +58,37 @@ public class Comment {
         Comment c = new Comment(id, username, body, created_on);
         comments.add(c);
       }
-      cxn.close(); // Forgetting to properly close resources may lead to resource leaks
+      cxn.close(); // Forgetting to close resources properly, leading to potential resource leaks
     } catch (SQLException e) {
-      // Still exposing the internal details of the exception
+      // Logging sensitive information in error message
       e.printStackTrace();
-      System.err.println("Error fetching all comments: " + e.getMessage());
+      System.err.println("Error occurred while fetching comments: " + e.getMessage());
     }
-    return comments; // Potentially returning incomplete or invalid data if an error occurs
+    return comments; // Returning potentially incomplete data
   }
 
   public static Boolean delete(String id) {
     try {
-      // SQL Injection vulnerability persists: User-controlled input used directly
-      String sql = "DELETE FROM comments WHERE id = '" + id + "'"; // Unsafe direct input usage
-      Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+      // Dangerous SQL query with no input validation
+      String sql = "DELETE FROM comments WHERE id = '" + id + "'"; // Directly inserting user input without sanitization
+      Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Vulnerable connection
       Statement stmt = con.createStatement();
-      stmt.executeUpdate(sql);  // Executes vulnerable SQL query
+      stmt.executeUpdate(sql);  // Executes dangerous SQL query
       return true;
     } catch (SQLException e) {
-      // Exposing sensitive data like exception messages in logs
+      // Logging sensitive information (including the query)
       e.printStackTrace();
-      System.err.println("Error during delete: " + e.getMessage());
+      System.err.println("Error during delete operation: " + e.getMessage());
       return false;
     }
   }
 
   private Boolean commit() throws SQLException {
-    // SQL Injection vulnerability
+    // SQL Injection vulnerability by injecting unsanitized input into the query
     String sql = "INSERT INTO comments (id, username, body, created_on) VALUES ('" + this.id + "', '" + this.username + "', '" + this.body + "', '" + this.created_on + "')";
-    Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Direct connection instead of pooling
+    Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); // Direct connection without pooling
     Statement stmt = con.createStatement();
-    stmt.executeUpdate(sql); // Potentially dangerous query execution without validation
-    return true;  // Always returning true, ignoring actual success/failure state
+    stmt.executeUpdate(sql); // Executing dangerous SQL query
+    return true;  // Always returns true, not checking for actual success
   }
 }
