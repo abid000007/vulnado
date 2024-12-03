@@ -9,23 +9,25 @@ jobs:
   build:
     name: Build and analyze
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Shallow clones should be disabled for better relevancy of analysis
 
-      - name: Run SonarQube scan excluding Java files
+      - name: Run SonarQube scan
         uses: sonarsource/sonarqube-scan-action@v4
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         with:
           args: |
-            -Dsonar.exclusions=**/*.java  # Exclude Java files from analysis
+            # No exclusions, include all files in the analysis (including Java files)
+            -Dsonar.sources=.
 
-      # Optional: Fail the job if the quality gate fails
-      # - uses: sonarsource/sonarqube-quality-gate-action@v1
-      #   timeout-minutes: 5
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # Ensure the quality gate fails the job if there are issues
+      - name: Wait for SonarQube quality gate
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
